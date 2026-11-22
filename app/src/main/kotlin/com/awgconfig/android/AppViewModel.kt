@@ -80,9 +80,12 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
 
     fun resetGen() { _genState.value = GenState.Idle }
 
-    /** WARP: регистрация с устройства + сборка конфига. */
+    /** WARP: регистрация с устройства + сборка конфига.
+     * Обязательно вне main-потока: регистрация делает реальные HTTP-запросы к
+     * api.cloudflareclient.com, а сетевой I/O на Dispatchers.Main бросает
+     * NetworkOnMainThreadException до отправки любого байта. */
     fun generateWarp(params: WarpGenParams) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _genState.value = GenState.Working(0)
             try {
                 val outcome = awgApp.warpGenerator.generate(params)

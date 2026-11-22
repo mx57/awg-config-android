@@ -66,9 +66,14 @@ object WarpRegistrationApi {
 
     private class HttpResponse(val status: Int, val body: String, val retryAfterHeader: String?)
 
+    /** Открывалка соединений. Внедряется из AwgApp: при активном VPN привязывает
+     * сокеты регистрации к базовой (не-VPN) сети, чтобы регистрация не зависела
+     * от состояния туннеля. В JVM-тестах остаётся null — обычный openConnection. */
+    internal var connectionOpener: ((URL) -> java.net.URLConnection)? = null
+
     private fun requestOnce(method: String, path: String, body: JSONObject?, token: String?): HttpResponse {
         val url = URL("https://$API_HOST$API_PREFIX/$path")
-        val conn = url.openConnection() as HttpURLConnection
+        val conn = (connectionOpener?.invoke(url) ?: url.openConnection()) as HttpURLConnection
         return try {
             conn.requestMethod = method
             conn.connectTimeout = REQUEST_TIMEOUT_MS.toInt()
