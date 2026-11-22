@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Щит -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M54,26 L74,34 V50 C74,66 65,75 54,82 C43,75 34,66 34,50 V34 Z" />
+
+    <!-- Внутренний контур щита -->
+    <path
+        android:fillColor="#0D1117"
+        android:pathData="M54,31 L69,37 V50 C69,63 62,70 54,76 C46,70 39,63 39,50 V37 Z" />
+
+    <!-- Ключ/молния внутри -->
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M57,42 L49,54 H54 L51,64 L61,51 H55 Z" />
+
+    <!-- Неоновые точки -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M84,84 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0" />
+    <path
+        android:fillColor="#A78BFA"
+        android:pathData="M24,84 m-2,0 a2,2 0 1,1 4,0 a2,2 0 1,1 -4,0" />
+</vector>
