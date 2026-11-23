@@ -102,18 +102,27 @@ fun TunnelScreen(vm: AppViewModel) {
                 )
             }
         } else {
+            // Туннель выключен: кнопка «Подключить последний конфиг» — тот же
+            // prepare-флоу с системным диалогом VPN, что и на экране результата.
             val lastTitle = vm.settings.lastTunnelTitle
-            if (lastTitle != null) {
-                NeonCard(accent = NeonPalette.textSecondary) {
+            val lastText = vm.settings.lastTunnelConfig
+            if (!lastText.isNullOrEmpty()) {
+                NeonCard(accent = NeonPalette.accent2, onClick = { vm.requestConnectLast() }) {
                     Text(
-                        s["tunnel_no_config"].orEmpty(),
-                        fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 15.sp,
+                        s["tunnel_connect_last"].orEmpty(),
+                        Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = NeonPalette.accent2,
+                    )
+                    Text(
+                        lastTitle ?: "—",
+                        Modifier.padding(top = 6.dp), textAlign = TextAlign.Center,
+                        fontSize = 10.sp, color = NeonPalette.textSecondary,
                     )
                 }
-            } else {
-                NeonCard(accent = NeonPalette.outline) {
-                    Text(s["tunnel_no_config"].orEmpty(), fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 15.sp)
-                }
+                VerticalSpacer(8)
+            }
+            NeonCard(accent = NeonPalette.outline) {
+                Text(s["tunnel_no_config"].orEmpty(), fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 15.sp)
             }
         }
 

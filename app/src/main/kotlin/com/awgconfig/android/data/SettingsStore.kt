@@ -29,11 +29,17 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(KEY_TUNNEL_TITLE, null)
         set(value) = prefs.edit().putString(KEY_TUNNEL_TITLE, value).apply()
 
+    /** Протокол последнего конфига туннеля (ключ ProtocolKind.key). */
+    var lastTunnelKind: String?
+        get() = prefs.getString(KEY_TUNNEL_KIND, null)
+        set(value) = prefs.edit().putString(KEY_TUNNEL_KIND, value).apply()
+
     companion object {
         private const val KEY_LANGUAGE = "language"
         private const val KEY_DNS = "dns"
         private const val KEY_HIDE_PRIV = "hide_priv"
         private const val KEY_TUNNEL_CONF = "tunnel_conf"
         private const val KEY_TUNNEL_TITLE = "tunnel_title"
+        private const val KEY_TUNNEL_KIND = "tunnel_kind"
     }
 }

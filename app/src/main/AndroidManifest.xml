@@ -3,6 +3,11 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Туннель работает как foreground-сервис: переживает свайп приложения -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Уведомление о работе туннеля (Android 13+ — запрашивается в рантайме) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".AwgApp"
@@ -26,14 +31,19 @@
             </intent-filter>
         </activity>
 
-        <!-- AmneziaWG-движок (org.amnezia.awg.backend.GoBackend из amneziawg-android, Apache-2.0) -->
+        <!-- AmneziaWG-движок (org.amnezia.awg.backend.GoBackend из amneziawg-android, Apache-2.0).
+             Foreground (specialUse): туннель живёт при свайпе приложения. -->
         <service
             android:name="org.amnezia.awg.backend.GoBackend$VpnService"
             android:exported="false"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="AmneziaWG VPN tunnel" />
         </service>
     </application>
 </manifest>

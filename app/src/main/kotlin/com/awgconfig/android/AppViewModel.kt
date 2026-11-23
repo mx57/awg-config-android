@@ -41,6 +41,20 @@ sealed interface GenState {
     data class Done(val outcome: BatchOutcome) : GenState
 }
 
+/** Действие туннеля, ожидающее системного диалога VPN-разрешения.
+ * Один и тот же prepare-флоу для всех вариантов: подключение с экрана
+ * результата, реальная проверка конфига, пакетная реальная проверка,
+ * повторное подключение последнего конфига с экрана туннеля. */
+sealed interface TunnelRequest {
+    val config: GeneratedConfig
+
+    data class Connect(override val config: GeneratedConfig) : TunnelRequest
+    data class RealTest(override val config: GeneratedConfig) : TunnelRequest
+    data class BatchRealTest(val configs: List<GeneratedConfig>) : TunnelRequest {
+        override val config: GeneratedConfig get() = configs.first()
+    }
+}
+
 /** Ошибка соединения/регистрации для человеческих текстов: человеческая
  * формулировка + техническая причина (HTTP-код апстрима, сообщение). Ловит
  * любой Throwable — uncaught Error не должен оставлять вечный спиннер. */
@@ -253,26 +267,87 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
     }
 
     // ── Туннель ────────────────────────────────────────────────────────────────
-    /** Конфиг, для которого пользователь запросил подключение (ждёт prepare). */
-    private val _pendingConnect = MutableStateFlow<GeneratedConfig?>(null)
-    val pendingConnect: StateFlow<GeneratedConfig?> = _pendingConnect
+    /** Очередь действий туннеля: заполняется кнопками подключений/проверок,
+     * AppRoot показывает системный диалог VPN и после разрешения выполняет. */
+    private val _tunnelRequest = MutableStateFlow<TunnelRequest?>(null)
+    val tunnelRequest: StateFlow<TunnelRequest?> = _tunnelRequest
 
-    /** Требуется системный диалог VPN: экран запускает prepare и зовёт approveConnect(). */
+    /** Пользователь нажал «Подключиться»: запросить системный диалог VPN. */
     fun requestConnect(config: GeneratedConfig) {
-        _pendingConnect.value = config
+        _tunnelRequest.value = TunnelRequest.Connect(config)
     }
 
-    fun consumePendingConnect(): GeneratedConfig? {
-        val value = _pendingConnect.value
-        _pendingConnect.value = null
+    /** Реальная проверка: если разрешение VPN ещё не выдано — сначала
+     * системный диалог, затем тест. Иначе — тест сразу. */
+    fun requestRealTest(config: GeneratedConfig) {
+        if (config.tunnelCapable && !tunnel.isPrepared()) {
+            _tunnelRequest.value = TunnelRequest.RealTest(config)
+        } else {
+            testReal(config)
+        }
+    }
+
+    /** Пакетная реальная проверка: тоже prepare-aware. Не-туннелируемые
+     * (MASQUE) проверяются только структурно/DNS — они остаются в списке. */
+    fun requestBatchRealTest(configs: List<GeneratedConfig>) {
+        if (configs.isEmpty()) return
+        if (!tunnel.isPrepared()) {
+            _tunnelRequest.value = TunnelRequest.BatchRealTest(configs)
+        } else {
+            batchTest(configs, real = true)
+        }
+    }
+
+    /** Подключить последний сохранённый конфиг (кнопка на экране туннеля). */
+    fun requestConnectLast() {
+        val text = settings.lastTunnelConfig ?: return
+        val title = settings.lastTunnelTitle ?: "—"
+        val kind = settings.lastTunnelKind
+            ?.let { k -> ProtocolKind.entries.firstOrNull { it.key == k } }
+            ?: detectProtocol(text) ?: return
+        requestConnect(
+            GeneratedConfig(
+                id = "last",
+                protocolKind = kind,
+                title = title,
+                text = text,
+                tunnelCapable = kind == ProtocolKind.WARP || kind == ProtocolKind.AWG_SERVER,
+            )
+        )
+    }
+
+    /** Эвристика протокола для конфигов, сохранённых без kind (v1.0.x). */
+    private fun detectProtocol(text: String): ProtocolKind? = when {
+        text.contains("cloudflareclient", ignoreCase = true) -> ProtocolKind.WARP
+        text.contains("masque://", ignoreCase = true) -> ProtocolKind.MASQUE
+        text.contains("[Interface]") -> ProtocolKind.AWG_SERVER
+        else -> null
+    }
+
+    fun consumeTunnelRequest(): TunnelRequest? {
+        val value = _tunnelRequest.value
+        _tunnelRequest.value = null
         return value
+    }
+
+    /** Выполнить действие туннеля после выданного разрешения VPN. */
+    fun executeTunnelRequest(request: TunnelRequest) {
+        when (request) {
+            is TunnelRequest.Connect -> connectTunnelApproved(request.config)
+            is TunnelRequest.RealTest -> testReal(request.config)
+            is TunnelRequest.BatchRealTest -> batchTest(request.configs, real = true)
+        }
     }
 
     fun connectTunnelApproved(config: GeneratedConfig) {
         viewModelScope.launch {
             settings.lastTunnelConfig = config.text
             settings.lastTunnelTitle = config.title
-            tunnel.connect(config)
+            settings.lastTunnelKind = config.protocolKind.key
+            val result = tunnel.connect(config)
+            result.exceptionOrNull()?.let {
+                android.util.Log.w("AwgConfig", "Tunnel connect failed: ${it.message}")
+            }
         }
     }
 

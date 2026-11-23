@@ -21,6 +21,11 @@ Copyright © 2017–2023 WireGuard LLC, Jason A. Donenfeld, AmneziaWG.
 (https://github.com/amnezia-vpn/amneziawg-go) в составе релиза
 AmneziaWG-3.1.20260814.
 
+**Модификации vendored-кода** (помечены `[awg-config]`): `GoBackend$VpnService`
+запускается как foreground-сервис с постоянным уведомлением (Android 14 —
+тип `specialUse`) — туннель переживает свайп приложения из «недавних»;
+уведомление использует ресурсы `tunnel_notif_*` приложения.
+
 ### ZXing (Apache-2.0)
 Генерация QR-кодов — ZXing (https://github.com/zxing/zxing), Apache-2.0.
 

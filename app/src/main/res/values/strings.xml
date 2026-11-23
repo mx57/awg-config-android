@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AWG Config Generator</string>
+
+    <!-- Уведомление foreground-туннеля (GoBackend$VpnService) -->
+    <string name="tunnel_notif_channel">AWG Tunnel</string>
+    <string name="tunnel_notif_title">AWG Tunnel</string>
+    <string name="tunnel_notif_text">VPN tunnel is running</string>
 </resources>

@@ -41,6 +41,7 @@ import com.awgconfig.android.core.model.TestReport
 import com.awgconfig.android.core.model.TestVerdict
 import com.awgconfig.android.i18n.LocalStrings
 import com.awgconfig.android.i18n.tr
+import com.awgconfig.android.tunnel.TunnelCore
 import com.awgconfig.android.ui.components.Chip
 import com.awgconfig.android.ui.components.CopyField
 import com.awgconfig.android.ui.components.KeyValueRow
@@ -226,7 +227,7 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
                         modifier = Modifier.padding(start = 6.dp),
                     ) {
                         testing = true
-                        vm.testReal(config)
+                        vm.requestRealTest(config)
                     }
                 }
                 Text(
@@ -254,20 +255,68 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
             WarningText(s["result_vpn_unavailable"].orEmpty(), Modifier.padding(top = 6.dp))
         }
 
-        // Подключение встроенным туннелем (движок AmneziaWG: WARP и собственные AWG-серверы)
+        // Подключение встроенным туннелем (движок AmneziaWG: WARP и собственные AWG-серверы).
+        // Карточка показывает живое состояние: подключается → спиннер, поднят →
+        // «Отключить», ошибка → красный текст с причиной. Молчаливых исходов нет.
         if (config.tunnelCapable) {
             VerticalSpacer(12)
-            NeonCard(accent = NeonPalette.accent2, onClick = { vm.requestConnect(config) }) {
-                Text(
-                    s["action_connect"].orEmpty(),
-                    Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
-                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = NeonPalette.accent2,
-                )
-                Text(
-                    s["result_connect_hint"].orEmpty(),
-                    Modifier.padding(top = 6.dp), textAlign = TextAlign.Center,
-                    fontSize = 10.sp, color = NeonPalette.textSecondary,
-                )
+            val aboutThis = tunnelState.configText == config.text
+            when {
+                aboutThis && tunnelState.state == TunnelCore.State.UP -> NeonCard(accent = NeonPalette.red, onClick = { vm.disconnectTunnel() }) {
+                    Text(
+                        s["action_disconnect"].orEmpty(),
+                        Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = NeonPalette.red,
+                    )
+                    Text(
+                        s["tunnel_connected_hint"].orEmpty(),
+                        Modifier.padding(top = 6.dp), textAlign = TextAlign.Center,
+                        fontSize = 10.sp, color = NeonPalette.textSecondary,
+                    )
+                }
+                aboutThis && tunnelState.state == TunnelCore.State.CONNECTING -> NeonCard(accent = NeonPalette.amber) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            Modifier.height(18.dp).padding(end = 10.dp),
+                            color = NeonPalette.amber, strokeWidth = 2.dp,
+                        )
+                        Text(s["home_tunnel_connecting"].orEmpty(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = NeonPalette.textPrimary)
+                    }
+                }
+                else -> NeonCard(accent = NeonPalette.accent2, onClick = { vm.requestConnect(config) }) {
+                    Text(
+                        s["action_connect"].orEmpty(),
+                        Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = NeonPalette.accent2,
+                    )
+                    Text(
+                        s["result_connect_hint"].orEmpty(),
+                        Modifier.padding(top = 6.dp), textAlign = TextAlign.Center,
+                        fontSize = 10.sp, color = NeonPalette.textSecondary,
+                    )
+                }
+            }
+            if (aboutThis && tunnelState.state == TunnelCore.State.ERROR) {
+                NeonCard(accent = NeonPalette.red) {
+                    Text(
+                        s["tunnel_failed"].orEmpty(),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NeonPalette.red,
+                    )
+                    Text(
+                        tunnelState.error ?: "",
+                        Modifier.padding(top = 4.dp),
+                        fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 15.sp,
+                    )
+                    Row(Modifier.padding(top = 8.dp)) {
+                        Chip(s["action_connect"].orEmpty(), accent = NeonPalette.accent2) {
+                            vm.requestConnect(config)
+                        }
+                    }
+                }
             }
         } else if (config.protocolKind == com.awgconfig.android.core.model.ProtocolKind.MASQUE) {
             VerticalSpacer(12)

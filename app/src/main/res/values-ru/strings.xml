@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Уведомление foreground-туннеля (GoBackend$VpnService) -->
+    <string name="tunnel_notif_channel">Туннель AWG</string>
+    <string name="tunnel_notif_title">Туннель AWG</string>
+    <string name="tunnel_notif_text">VPN-туннель работает</string>
+</resources>

@@ -2,8 +2,11 @@ package com.awgconfig.android
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -93,26 +96,49 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppRoot(vm: AppViewModel) {
     val context = LocalContext.current
+    val s = LocalStrings.current
     val route = remember { mutableStateOf<AppRoute>(AppRoute.Home) }
-    val pending by vm.pendingConnect.collectAsState()
+    val tunnelRequest by vm.tunnelRequest.collectAsState()
 
-    // Системный диалог VPN-разрешения → затем подключение
+    // Уведомление туннеля (Android 13+): необязательно для работы VPN, но даёт
+    // живую строку в шторке. Запрашиваем после VPN-разрешения, не блокируя его.
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { }
+
+    // Системный диалог VPN-разрешения → затем выполнение действия туннеля
+    // (подключение / реальная проверка / пакетная реальная проверка).
     val prepareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val config = vm.consumePendingConnect() ?: return@rememberLauncherForActivityResult
+        val request = vm.consumeTunnelRequest() ?: return@rememberLauncherForActivityResult
         if (result.resultCode == Activity.RESULT_OK) {
-            vm.connectTunnelApproved(config)
+            if (Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                runCatching { notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+            }
+            vm.executeTunnelRequest(request)
+        } else {
+            Toast.makeText(context, s["connect_cancelled"].orEmpty(), Toast.LENGTH_LONG).show()
         }
     }
 
-    LaunchedEffect(pending) {
-        val config = pending ?: return@LaunchedEffect
-        if (config.tunnelCapable.not()) { vm.consumePendingConnect(); return@LaunchedEffect }
+    // Одиный prepare-флоу для всех действий туннеля: если разрешение VPN ещё не
+    // выдано — системный диалог; иначе — выполнение сразу. Ошибки и отказы
+    // всегда видимы (тост), молчаливых путей нет.
+    LaunchedEffect(tunnelRequest) {
+        val request = tunnelRequest ?: return@LaunchedEffect
+        if (!request.config.tunnelCapable) {
+            vm.consumeTunnelRequest()
+            Toast.makeText(context, s["toast_masque_no_tunnel"].orEmpty(), Toast.LENGTH_LONG).show()
+            return@LaunchedEffect
+        }
         val intent = VpnService.prepare(context)
         if (intent != null) {
             prepareLauncher.launch(intent)
         } else {
-            vm.consumePendingConnect()
-            vm.connectTunnelApproved(config)
+            vm.consumeTunnelRequest()
+            vm.executeTunnelRequest(request)
         }
     }
 

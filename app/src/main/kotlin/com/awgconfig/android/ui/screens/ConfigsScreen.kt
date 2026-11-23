@@ -165,7 +165,9 @@ fun ConfigsScreen(vm: AppViewModel, onOpen: () -> Unit) {
                             vm.batchTest(selectedConfigs, real = false)
                         }
                         Chip(s["check_real"].orEmpty(), accent = NeonPalette.accent3) {
-                            vm.batchTest(selectedConfigs, real = true)
+                            // При отсутствии разрешения VPN системный диалог покажется
+                            // автоматически (единый prepare-флоу), затем пойдёт тест.
+                            vm.requestBatchRealTest(selectedConfigs)
                         }
                     }
                     Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

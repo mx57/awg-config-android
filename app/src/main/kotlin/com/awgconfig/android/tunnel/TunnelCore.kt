@@ -3,6 +3,7 @@ package com.awgconfig.android.tunnel
 import android.content.Context
 import com.awgconfig.android.core.model.GeneratedConfig
 import com.awgconfig.android.core.model.ProtocolKind
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -79,7 +80,9 @@ class TunnelCore(private val context: Context) {
     /** Проверено ли разрешение VPN (VpnService.prepare == null). */
     fun isPrepared(): Boolean = android.net.VpnService.prepare(context) == null
 
-    /** Поднимает туннель по конфигу. */
+    /** Поднимает туннель по конфигу. Ловит любой Throwable (в т.ч. Error —
+     * UnsatisfiedLinkError от движка не должен убивать приложение): ошибка
+     * попадает в state.error и видна на экране результата/туннеля. */
     suspend fun connect(config: GeneratedConfig): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val prepared = prepareConf(config.text, config.protocolKind)
@@ -92,7 +95,8 @@ class TunnelCore(private val context: Context) {
         } catch (e: BackendException) {
             _state.value = _state.value.copy(state = State.ERROR, error = backendMessage(e))
             Result.failure(e)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
             _state.value = _state.value.copy(state = State.ERROR, error = e.message ?: e.javaClass.simpleName)
             Result.failure(e)
         }
@@ -160,7 +164,8 @@ class TunnelCore(private val context: Context) {
             val message = backendMessage(e)
             _state.value = _state.value.copy(state = State.ERROR, error = message)
             RealTestResult(false, false, false, fullTunnel = fullTunnel, error = message)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
             val message = e.message ?: e.javaClass.simpleName
             _state.value = _state.value.copy(state = State.ERROR, error = message)
             RealTestResult(false, false, false, fullTunnel = fullTunnel, error = message)
@@ -186,7 +191,7 @@ class TunnelCore(private val context: Context) {
             "Не удалось создать туннель (отказ системы)"
         BackendException.Reason.GO_ACTIVATION_ERROR_CODE ->
             "Ошибка активации движка AmneziaWG"
-        else -> e.reason?.toString() ?: "BackendException"
+        else -> "${e.reason}: ${e.message ?: e.javaClass.simpleName}"
     }
 
     companion object {

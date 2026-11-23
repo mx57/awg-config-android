@@ -5,8 +5,12 @@
 
 package org.amnezia.awg.backend;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.system.OsConstants;
@@ -45,6 +49,9 @@ import static org.amnezia.awg.GoBackend.*;
 public final class GoBackend implements Backend {
     private static final int DNS_RESOLUTION_RETRIES = 10;
     private static final String TAG = "AmneziaWG/GoBackend";
+    // [awg-config] идентификаторы уведомления foreground-туннеля
+    private static final String NOTIFICATION_CHANNEL_ID = "awg_tunnel";
+    private static final int NOTIFICATION_ID = 1;
     @Nullable private static AlwaysOnCallback alwaysOnCallback;
     private static GhettoCompletableFuture<VpnService> vpnService = new GhettoCompletableFuture<>();
     private final Context context;
@@ -488,6 +495,10 @@ public final class GoBackend implements Backend {
 
     /**
      * {@link android.net.VpnService} implementation for {@link GoBackend}
+     *
+     * [awg-config] Модификация относительно оригинала amneziawg-android:
+     * сервис запускается как foreground с постоянным уведомлением — иначе
+     * Android убивает туннель при свайпе приложения из «недавних».
      */
     public static class VpnService extends android.net.VpnService {
         @Nullable private GoBackend owner;
@@ -500,6 +511,36 @@ public final class GoBackend implements Backend {
         public void onCreate() {
             vpnService.complete(this);
             super.onCreate();
+            startAsForeground();
+        }
+
+        /** Постоянное уведомление туннеля: канал без звука, категория service. */
+        private void startAsForeground() {
+            try {
+                final NotificationManager nm = getSystemService(NotificationManager.class);
+                if (nm != null) {
+                    final NotificationChannel channel = new NotificationChannel(
+                            NOTIFICATION_CHANNEL_ID,
+                            getString(com.awgconfig.android.R.string.tunnel_notif_channel),
+                            NotificationManager.IMPORTANCE_LOW);
+                    channel.setShowBadge(false);
+                    nm.createNotificationChannel(channel);
+                }
+                final Notification notification = new Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
+                        .setSmallIcon(com.awgconfig.android.R.drawable.ic_tunnel_notif)
+                        .setContentTitle(getString(com.awgconfig.android.R.string.tunnel_notif_title))
+                        .setContentText(getString(com.awgconfig.android.R.string.tunnel_notif_text))
+                        .setOngoing(true)
+                        .setShowWhen(false)
+                        .setCategory(Notification.CATEGORY_SERVICE)
+                        .build();
+                if (Build.VERSION.SDK_INT >= 34)
+                    startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                else
+                    startForeground(NOTIFICATION_ID, notification);
+            } catch (final Exception e) {
+                Log.w(TAG, "Foreground start failed; tunnel keeps running without notification", e);
+            }
         }
 
         @Override
