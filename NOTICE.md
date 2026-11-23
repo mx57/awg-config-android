@@ -24,7 +24,9 @@ AmneziaWG-3.1.20260814.
 **Модификации vendored-кода** (помечены `[awg-config]`): `GoBackend$VpnService`
 запускается как foreground-сервис с постоянным уведомлением (Android 14 —
 тип `specialUse`) — туннель переживает свайп приложения из «недавних»;
-уведомление использует ресурсы `tunnel_notif_*` приложения.
+уведомление использует ресурсы `tunnel_notif_*` приложения. Также увеличен
+таймаут старта VPN-сервиса (2 c → 5 c) и добавлена защита `protect(fd)` от
+fd < 0.
 
 ### ZXing (Apache-2.0)
 Генерация QR-кодов — ZXing (https://github.com/zxing/zxing), Apache-2.0.

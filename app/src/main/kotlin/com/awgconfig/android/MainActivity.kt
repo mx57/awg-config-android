@@ -107,9 +107,12 @@ fun AppRoot(vm: AppViewModel) {
     ) { }
 
     // Системный диалог VPN-разрешения → затем выполнение действия туннеля
-    // (подключение / реальная проверка / пакетная реальная проверка).
+    // (подключение / реальная проверка / пакетная реальная проверка / явный
+    // запрос разрешения без подключения — диагностика на экране туннеля).
     val prepareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val request = vm.consumeTunnelRequest() ?: return@rememberLauncherForActivityResult
+        val request = vm.consumeTunnelRequest()
+        vm.refreshVpnPermission()
+        if (request == null) return@rememberLauncherForActivityResult
         if (result.resultCode == Activity.RESULT_OK) {
             if (Build.VERSION.SDK_INT >= 33 &&
                 context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
@@ -117,18 +120,25 @@ fun AppRoot(vm: AppViewModel) {
             ) {
                 runCatching { notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
             }
-            vm.executeTunnelRequest(request)
+            if (request is TunnelRequest.EnsurePermission) {
+                Toast.makeText(context, s["vpn_permission_granted_toast"].orEmpty(), Toast.LENGTH_LONG).show()
+            } else {
+                vm.executeTunnelRequest(request)
+            }
         } else {
             Toast.makeText(context, s["connect_cancelled"].orEmpty(), Toast.LENGTH_LONG).show()
         }
     }
 
-    // Одиный prepare-флоу для всех действий туннеля: если разрешение VPN ещё не
-    // выдано — системный диалог; иначе — выполнение сразу. Ошибки и отказы
-    // всегда видимы (тост), молчаливых путей нет.
+    // Единый prepare-флоу для всех действий туннеля: если разрешение VPN ещё не
+    // выдано — системный диалог; иначе — выполнение сразу. Выданное разрешение
+    // Android запоминает, поэтому диалог появляется только один раз — это
+    // норма, а не отсутствие реакции. Ошибки и отказы всегда видимы (тост),
+    // молчаливых путей нет.
     LaunchedEffect(tunnelRequest) {
         val request = tunnelRequest ?: return@LaunchedEffect
-        if (!request.config.tunnelCapable) {
+        val config = request.config
+        if (config != null && !config.tunnelCapable) {
             vm.consumeTunnelRequest()
             Toast.makeText(context, s["toast_masque_no_tunnel"].orEmpty(), Toast.LENGTH_LONG).show()
             return@LaunchedEffect
@@ -137,6 +147,9 @@ fun AppRoot(vm: AppViewModel) {
         if (intent != null) {
             prepareLauncher.launch(intent)
         } else {
+            if (request is TunnelRequest.EnsurePermission) {
+                Toast.makeText(context, s["vpn_permission_already_toast"].orEmpty(), Toast.LENGTH_LONG).show()
+            }
             vm.consumeTunnelRequest()
             vm.executeTunnelRequest(request)
         }

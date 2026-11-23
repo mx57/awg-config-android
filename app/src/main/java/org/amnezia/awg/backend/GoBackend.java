@@ -49,6 +49,9 @@ import static org.amnezia.awg.GoBackend.*;
 public final class GoBackend implements Backend {
     private static final int DNS_RESOLUTION_RETRIES = 10;
     private static final String TAG = "AmneziaWG/GoBackend";
+    // [awg-config] старт сервиса иногда занимает >2с на холодном старте/медленных
+    // устройствах — увеличенный таймаут спасает от ложного UNABLE_TO_START_VPN.
+    private static final int SERVICE_START_TIMEOUT_SEC = 5;
     // [awg-config] идентификаторы уведомления foreground-туннеля
     private static final String NOTIFICATION_CHANNEL_ID = "awg_tunnel";
     private static final int NOTIFICATION_ID = 1;
@@ -344,7 +347,7 @@ public final class GoBackend implements Backend {
             }
 
             try {
-                service = vpnService.get(2, TimeUnit.SECONDS);
+                service = vpnService.get(SERVICE_START_TIMEOUT_SEC, TimeUnit.SECONDS);
             } catch (final TimeoutException e) {
                 final Exception be = new BackendException(Reason.UNABLE_TO_START_VPN);
                 be.initCause(e);
@@ -422,19 +425,30 @@ public final class GoBackend implements Backend {
 
             builder.setBlocking(true);
             try (final ParcelFileDescriptor tun = builder.establish()) {
-                if (tun == null)
+                if (tun == null) {
+                    Log.e(TAG, "establish() returned null: VPN authorization revoked or another VPN/always-on VPN holds the interface");
                     throw new BackendException(Reason.TUN_CREATION_ERROR);
+                }
                 Log.d(TAG, "Go backend " + awgVersion());
                 currentTunnelHandle = awgTurnOn(tunnel.getName(), tun.detachFd(), goConfig);
             }
-            if (currentTunnelHandle < 0)
+            if (currentTunnelHandle < 0) {
+                Log.e(TAG, "awgTurnOn failed with code " + currentTunnelHandle);
                 throw new BackendException(Reason.GO_ACTIVATION_ERROR_CODE, currentTunnelHandle);
+            }
 
             currentTunnel = tunnel;
             currentConfig = config;
 
-            service.protect(awgGetSocketV4(currentTunnelHandle));
-            service.protect(awgGetSocketV6(currentTunnelHandle));
+            // awgGetSocketV4/V6 return -1 when the endpoint family is unused —
+            // protect(-1) would throw IllegalArgumentException and kill an
+            // otherwise healthy tunnel.
+            final int socketV4 = awgGetSocketV4(currentTunnelHandle);
+            if (socketV4 >= 0)
+                service.protect(socketV4);
+            final int socketV6 = awgGetSocketV6(currentTunnelHandle);
+            if (socketV6 >= 0)
+                service.protect(socketV6);
 
             launchStatusJob();
         } else {

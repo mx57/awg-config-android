@@ -61,6 +61,7 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
     val outcome by vm.lastOutcome.collectAsState()
     val index by vm.resultIndex.collectAsState()
     val tunnelState by vm.tunnel.state.collectAsState()
+    val vpnPermission by vm.vpnPermission.collectAsState()
     var qrContent by remember { mutableStateOf<String?>(null) }
     val lang = com.awgconfig.android.i18n.LocalLang.current
     val hidePriv = vm.settings.hidePrivateKey
@@ -315,6 +316,22 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
                         Chip(s["action_connect"].orEmpty(), accent = NeonPalette.accent2) {
                             vm.requestConnect(config)
                         }
+                        if (!vpnPermission) {
+                            Chip(
+                                s["vpn_permission_request"].orEmpty(),
+                                accent = NeonPalette.amber,
+                                modifier = Modifier.padding(start = 6.dp),
+                            ) {
+                                vm.requestVpnPermission()
+                            }
+                        }
+                    }
+                    if (!vpnPermission) {
+                        Text(
+                            s["vpn_permission_error_hint"].orEmpty(),
+                            Modifier.padding(top = 6.dp),
+                            fontSize = 10.sp, color = NeonPalette.textSecondary, lineHeight = 14.sp,
+                        )
                     }
                 }
             }

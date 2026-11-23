@@ -44,14 +44,21 @@ sealed interface GenState {
 /** Действие туннеля, ожидающее системного диалога VPN-разрешения.
  * Один и тот же prepare-флоу для всех вариантов: подключение с экрана
  * результата, реальная проверка конфига, пакетная реальная проверка,
- * повторное подключение последнего конфига с экрана туннеля. */
+ * повторное подключение последнего конфига с экрана туннеля и просто
+ * запрос разрешения VPN без подключения (диагностика).
+ * [config] == null только у [EnsurePermission] — этот запрос не подключает. */
 sealed interface TunnelRequest {
-    val config: GeneratedConfig
+    val config: GeneratedConfig?
+
+    /** Только выдать/проверить разрешение VPN — без подключения. */
+    data object EnsurePermission : TunnelRequest {
+        override val config: GeneratedConfig? get() = null
+    }
 
     data class Connect(override val config: GeneratedConfig) : TunnelRequest
     data class RealTest(override val config: GeneratedConfig) : TunnelRequest
     data class BatchRealTest(val configs: List<GeneratedConfig>) : TunnelRequest {
-        override val config: GeneratedConfig get() = configs.first()
+        override val config: GeneratedConfig? get() = configs.firstOrNull()
     }
 }
 
@@ -267,35 +274,43 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
     }
 
     // ── Туннель ────────────────────────────────────────────────────────────────
+    /** Выдано ли системное разрешение VPN (VpnService.prepare == null).
+     * Если оно уже выдано — диалог при подключении НЕ появляется (это не баг):
+     * статус виден на экране туннеля, а кнопку запроса можно нажать явно. */
+    private val _vpnPermission = MutableStateFlow(tunnel.isPrepared())
+    val vpnPermission: StateFlow<Boolean> = _vpnPermission
+
+    /** Пересчитать статус разрешения (после диалога, после возврата на экран). */
+    fun refreshVpnPermission() {
+        _vpnPermission.value = tunnel.isPrepared()
+    }
+
     /** Очередь действий туннеля: заполняется кнопками подключений/проверок,
      * AppRoot показывает системный диалог VPN и после разрешения выполняет. */
     private val _tunnelRequest = MutableStateFlow<TunnelRequest?>(null)
     val tunnelRequest: StateFlow<TunnelRequest?> = _tunnelRequest
+
+    /** Явно запросить разрешение VPN (без подключения) — кнопка диагностики. */
+    fun requestVpnPermission() {
+        _tunnelRequest.value = TunnelRequest.EnsurePermission
+    }
 
     /** Пользователь нажал «Подключиться»: запросить системный диалог VPN. */
     fun requestConnect(config: GeneratedConfig) {
         _tunnelRequest.value = TunnelRequest.Connect(config)
     }
 
-    /** Реальная проверка: если разрешение VPN ещё не выдано — сначала
-     * системный диалог, затем тест. Иначе — тест сразу. */
+    /** Реальная проверка: единый prepare-флоу — если разрешение ещё не выдано,
+     * сначала системный диалог, затем тест; иначе — тест сразу. */
     fun requestRealTest(config: GeneratedConfig) {
-        if (config.tunnelCapable && !tunnel.isPrepared()) {
-            _tunnelRequest.value = TunnelRequest.RealTest(config)
-        } else {
-            testReal(config)
-        }
+        _tunnelRequest.value = TunnelRequest.RealTest(config)
     }
 
     /** Пакетная реальная проверка: тоже prepare-aware. Не-туннелируемые
      * (MASQUE) проверяются только структурно/DNS — они остаются в списке. */
     fun requestBatchRealTest(configs: List<GeneratedConfig>) {
         if (configs.isEmpty()) return
-        if (!tunnel.isPrepared()) {
-            _tunnelRequest.value = TunnelRequest.BatchRealTest(configs)
-        } else {
-            batchTest(configs, real = true)
-        }
+        _tunnelRequest.value = TunnelRequest.BatchRealTest(configs)
     }
 
     /** Подключить последний сохранённый конфиг (кнопка на экране туннеля). */
@@ -332,10 +347,12 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
 
     /** Выполнить действие туннеля после выданного разрешения VPN. */
     fun executeTunnelRequest(request: TunnelRequest) {
+        refreshVpnPermission()
         when (request) {
             is TunnelRequest.Connect -> connectTunnelApproved(request.config)
             is TunnelRequest.RealTest -> testReal(request.config)
             is TunnelRequest.BatchRealTest -> batchTest(request.configs, real = true)
+            TunnelRequest.EnsurePermission -> Unit // разрешение выдано, статус обновлён выше
         }
     }
 
@@ -346,7 +363,7 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
             settings.lastTunnelKind = config.protocolKind.key
             val result = tunnel.connect(config)
             result.exceptionOrNull()?.let {
-                android.util.Log.w("AwgConfig", "Tunnel connect failed: ${it.message}")
+                android.util.Log.w("AwgConfig", "Tunnel connect failed", it)
             }
         }
     }

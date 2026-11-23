@@ -26,16 +26,23 @@ import androidx.compose.ui.unit.sp
 import com.awgconfig.android.AppViewModel
 import com.awgconfig.android.VerticalSpacer
 import com.awgconfig.android.i18n.LocalStrings
+import com.awgconfig.android.ui.components.Chip
 import com.awgconfig.android.ui.components.NeonCard
 import com.awgconfig.android.ui.components.SectionTitle
 import com.awgconfig.android.ui.theme.NeonPalette
 import kotlinx.coroutines.delay
 
-/** Экран встроенного туннеля: состояние, статистика, включение/выключение. */
+/** Экран встроенного туннеля: состояние, статистика, диагностика
+ * (разрешение VPN / движок / последняя ошибка), включение/выключение. */
 @Composable
 fun TunnelScreen(vm: AppViewModel) {
     val s = LocalStrings.current
     val state by vm.tunnel.state.collectAsState()
+    val vpnPermission by vm.vpnPermission.collectAsState()
+
+    // Обновляем статус разрешения при входе на экран: диалог мог быть выдан
+    // (или отозван через настройки системы) в другом месте.
+    LaunchedEffect(Unit) { vm.refreshVpnPermission() }
 
     LaunchedEffect(state.state) {
         while (state.state == com.awgconfig.android.tunnel.TunnelCore.State.UP) {
@@ -75,6 +82,54 @@ fun TunnelScreen(vm: AppViewModel) {
             }
             VerticalSpacer(8)
             Text(s["tunnel_last_config"].orEmpty() + ": " + (state.title ?: "—"), fontSize = 12.sp, color = NeonPalette.textSecondary)
+        }
+
+        VerticalSpacer(12)
+
+        // Диагностика: разрешение VPN (его можно выдать явно кнопкой —
+        // ответ на «диалог не появился»: если разрешение уже выдано,
+        // система его не запрашивает повторно), движок и последняя ошибка.
+        SectionTitle(s["tunnel_diag_title"].orEmpty())
+        NeonCard(accent = if (vpnPermission) NeonPalette.accent2 else NeonPalette.amber) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(10.dp).background(
+                        if (vpnPermission) NeonPalette.accent2 else NeonPalette.amber,
+                        CircleShape,
+                    )
+                )
+                Text(
+                    "  " + s["tunnel_permission"].orEmpty() + ": " +
+                        s[if (vpnPermission) "vpn_permission_granted" else "vpn_permission_missing"].orEmpty(),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                )
+            }
+            if (!vpnPermission) {
+                Row(Modifier.padding(top = 8.dp)) {
+                    Chip(s["vpn_permission_request"].orEmpty(), accent = NeonPalette.amber) {
+                        vm.requestVpnPermission()
+                    }
+                }
+            }
+            Text(
+                s["tunnel_permission_hint"].orEmpty(),
+                Modifier.padding(top = 6.dp),
+                fontSize = 10.sp, color = NeonPalette.textSecondary, lineHeight = 14.sp,
+            )
+            Text(
+                s["tunnel_engine"].orEmpty() + ": " +
+                    (state.version ?: s["tunnel_engine_missing"].orEmpty()) +
+                    " (awg-go)",
+                Modifier.padding(top = 8.dp),
+                fontSize = 11.sp, color = NeonPalette.textSecondary, fontFamily = FontFamily.Monospace,
+            )
+            state.error?.let {
+                Text(
+                    s["tunnel_diag_last_error"].orEmpty() + ": " + it,
+                    Modifier.padding(top = 4.dp),
+                    fontSize = 11.sp, color = NeonPalette.red, lineHeight = 15.sp,
+                )
+            }
         }
 
         VerticalSpacer(12)
@@ -127,11 +182,7 @@ fun TunnelScreen(vm: AppViewModel) {
         }
 
         VerticalSpacer(12)
-        SectionTitle(s["tunnel_note"].let { _ -> "i" })
         Text(s["tunnel_note"].orEmpty(), fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 16.sp)
-        state.version?.let {
-            Text("AmneziaWG · awg-go $it", Modifier.padding(top = 6.dp), fontSize = 10.sp, color = NeonPalette.textSecondary, fontFamily = FontFamily.Monospace)
-        }
         VerticalSpacer(24)
     }
 }
