@@ -19,6 +19,7 @@ import com.awgconfig.android.core.warp.WarpRegistrationApi
 import com.awgconfig.android.data.HistoryStore
 import com.awgconfig.android.data.SettingsStore
 import com.awgconfig.android.i18n.Strings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,17 +36,26 @@ sealed interface GenState {
     data class Done(val outcome: BatchOutcome) : GenState
 }
 
-/** Ошибка соединения/регистрации для человеческих текстов. */
-fun errorText(e: Exception, lang: String): String = when (e) {
-    is WarpRegistrationApi.RegistrationException -> when (lang) {
-        "en" -> when (e.refusalClass) {
-            WarpRegistrationApi.RefusalClass.RATE_LIMITED ->
-                "Cloudflare is rate-limiting WARP device creation. Wait a minute and retry."
-            else -> "Cloudflare WARP registration service failed: ${e.refusalClass.name.lowercase()}"
+/** Ошибка соединения/регистрации для человеческих текстов: человеческая
+ * формулировка + техническая причина (HTTP-код апстрима, сообщение). Ловит
+ * любой Throwable — uncaught Error не должен оставлять вечный спиннер. */
+fun errorText(t: Throwable, lang: String): String {
+    val human = when (t) {
+        is WarpRegistrationApi.RegistrationException -> when (lang) {
+            "en" -> when (t.refusalClass) {
+                WarpRegistrationApi.RefusalClass.RATE_LIMITED ->
+                    "Cloudflare is rate-limiting WARP device creation. Wait a minute and retry."
+                else -> "Cloudflare WARP registration service failed: ${t.refusalClass.name.lowercase()}"
+            }
+            else -> WarpRegistrationApi.refusalText(t.refusalClass)
         }
-        else -> WarpRegistrationApi.refusalText(e.refusalClass)
+        else -> t.message ?: t.javaClass.simpleName
     }
-    else -> e.message ?: e.javaClass.simpleName
+    val technical = listOfNotNull(
+        (t as? WarpRegistrationApi.RegistrationException)?.upstreamStatus?.let { "HTTP $it" },
+        t.cause?.let { it.message ?: it.javaClass.simpleName },
+    ).joinToString(": ")
+    return if (technical.isBlank()) human else "$human ($technical)"
 }
 
 class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
@@ -93,7 +103,8 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
                 _lastOutcome.value = outcome
                 _resultIndex.value = 0
                 outcome.configs.forEach { remember(it) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
                 _genState.value = GenState.Failed(
                     errorText(e, _lang.value),
                     if (_lang.value == "en") "Try later or switch endpoint/port in options." else "Попробуйте позже или смените endpoint и порт в настройках.",
@@ -111,8 +122,9 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
                 _lastOutcome.value = outcome
                 _resultIndex.value = 0
                 outcome.configs.forEach { remember(it) }
-            } catch (e: Exception) {
-                _genState.value = GenState.Failed(e.message ?: "error", null)
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                _genState.value = GenState.Failed(errorText(e, _lang.value), null)
             }
         }
     }
@@ -120,22 +132,32 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
     fun generateMasque(params: MasqueParams) {
         viewModelScope.launch(Dispatchers.Default) {
             _genState.value = GenState.Working(2)
-            val outcome = BatchGenerator.masqueBatch(params, 1)
-            _genState.value = GenState.Done(outcome)
-            _lastOutcome.value = outcome
-            _resultIndex.value = 0
-            outcome.configs.forEach { remember(it) }
+            try {
+                val outcome = BatchGenerator.masqueBatch(params, 1)
+                _genState.value = GenState.Done(outcome)
+                _lastOutcome.value = outcome
+                _resultIndex.value = 0
+                outcome.configs.forEach { remember(it) }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                _genState.value = GenState.Failed(errorText(e, _lang.value), null)
+            }
         }
     }
 
     fun generateKeypair() {
         viewModelScope.launch(Dispatchers.Default) {
             _genState.value = GenState.Working(2)
-            val outcome = BatchGenerator.keypairBatch(1)
-            _genState.value = GenState.Done(outcome)
-            _lastOutcome.value = outcome
-            _resultIndex.value = 0
-            outcome.configs.forEach { remember(it) }
+            try {
+                val outcome = BatchGenerator.keypairBatch(1)
+                _genState.value = GenState.Done(outcome)
+                _lastOutcome.value = outcome
+                _resultIndex.value = 0
+                outcome.configs.forEach { remember(it) }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                _genState.value = GenState.Failed(errorText(e, _lang.value), null)
+            }
         }
     }
 
@@ -145,33 +167,48 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
     fun batchAwg(params: AwgServerParams, count: Int) {
         viewModelScope.launch(Dispatchers.Default) {
             _genState.value = GenState.Working(2)
-            val outcome = BatchGenerator.awgServerBatch(params, count)
-            _genState.value = GenState.Done(outcome)
-            _lastOutcome.value = outcome
-            _resultIndex.value = 0
-            outcome.configs.forEach { remember(it) }
+            try {
+                val outcome = BatchGenerator.awgServerBatch(params, count)
+                _genState.value = GenState.Done(outcome)
+                _lastOutcome.value = outcome
+                _resultIndex.value = 0
+                outcome.configs.forEach { remember(it) }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                _genState.value = GenState.Failed(errorText(e, _lang.value), null)
+            }
         }
     }
 
     fun batchMasque(params: MasqueParams, count: Int) {
         viewModelScope.launch(Dispatchers.Default) {
             _genState.value = GenState.Working(2)
-            val outcome = BatchGenerator.masqueBatch(params, count)
-            _genState.value = GenState.Done(outcome)
-            _lastOutcome.value = outcome
-            _resultIndex.value = 0
-            outcome.configs.forEach { remember(it) }
+            try {
+                val outcome = BatchGenerator.masqueBatch(params, count)
+                _genState.value = GenState.Done(outcome)
+                _lastOutcome.value = outcome
+                _resultIndex.value = 0
+                outcome.configs.forEach { remember(it) }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                _genState.value = GenState.Failed(errorText(e, _lang.value), null)
+            }
         }
     }
 
     fun batchKeypair(count: Int) {
         viewModelScope.launch(Dispatchers.Default) {
             _genState.value = GenState.Working(2)
-            val outcome = BatchGenerator.keypairBatch(count)
-            _genState.value = GenState.Done(outcome)
-            _lastOutcome.value = outcome
-            _resultIndex.value = 0
-            outcome.configs.forEach { remember(it) }
+            try {
+                val outcome = BatchGenerator.keypairBatch(count)
+                _genState.value = GenState.Done(outcome)
+                _lastOutcome.value = outcome
+                _resultIndex.value = 0
+                outcome.configs.forEach { remember(it) }
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                _genState.value = GenState.Failed(errorText(e, _lang.value), null)
+            }
         }
     }
 

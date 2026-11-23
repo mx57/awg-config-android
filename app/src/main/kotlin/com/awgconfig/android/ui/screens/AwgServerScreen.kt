@@ -149,7 +149,7 @@ fun AwgServerScreen(vm: AppViewModel, onResult: () -> Unit) {
                 }
                 VerticalSpacer(10)
             }
-            is GenState.Done -> LaunchedEffectKey("awg-done") { onResult() }
+            is GenState.Done -> LaunchedEffectKey("awg-done") { onResult(); vm.resetGen() }
             else -> Unit
         }
 

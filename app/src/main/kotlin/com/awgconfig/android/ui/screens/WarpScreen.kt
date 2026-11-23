@@ -270,7 +270,7 @@ fun WarpScreen(vm: AppViewModel, onResult: () -> Unit) {
                 VerticalSpacer(10)
             }
             is GenState.Done -> {
-                LaunchedEffectKey("warp-done") { onResult() }
+                LaunchedEffectKey("warp-done") { onResult(); vm.resetGen() }
                 NeonCard(accent = NeonPalette.accent2) {
                     Text(s["result_title"].orEmpty(), color = NeonPalette.accent2, fontWeight = FontWeight.Bold)
                 }

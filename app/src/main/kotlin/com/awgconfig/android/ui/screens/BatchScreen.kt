@@ -100,7 +100,7 @@ fun BatchScreen(vm: AppViewModel, onResult: () -> Unit) {
 
         VerticalSpacer(12)
         when (genState) {
-            is GenState.Done -> LaunchedEffectKey("batch-done") { onResult() }
+            is GenState.Done -> LaunchedEffectKey("batch-done") { onResult(); vm.resetGen() }
             else -> Unit
         }
 

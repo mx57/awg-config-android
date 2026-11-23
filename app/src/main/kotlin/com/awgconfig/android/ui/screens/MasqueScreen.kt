@@ -63,7 +63,7 @@ fun MasqueScreen(vm: AppViewModel, onResult: () -> Unit) {
         VerticalSpacer(12)
 
         when (val st = genState) {
-            is GenState.Done -> LaunchedEffectKey("masque-done") { onResult() }
+            is GenState.Done -> LaunchedEffectKey("masque-done") { onResult(); vm.resetGen() }
             else -> Unit
         }
 
