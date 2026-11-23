@@ -54,12 +54,12 @@ import com.awgconfig.android.i18n.LocalLang
 import com.awgconfig.android.i18n.LocalStrings
 import com.awgconfig.android.i18n.Strings
 import com.awgconfig.android.i18n.tr
-import com.awgconfig.android.tunnel.VpnTunnelController
+import com.awgconfig.android.tunnel.TunnelCore
 import com.awgconfig.android.ui.screens.AppRoute
 import com.awgconfig.android.ui.screens.AwgServerScreen
 import com.awgconfig.android.ui.screens.BatchScreen
+import com.awgconfig.android.ui.screens.ConfigsScreen
 import com.awgconfig.android.ui.screens.HomeScreen
-import com.awgconfig.android.ui.screens.HistoryScreen
 import com.awgconfig.android.ui.screens.KeypairScreen
 import com.awgconfig.android.ui.screens.MasqueScreen
 import com.awgconfig.android.ui.screens.ResultScreen
@@ -129,7 +129,7 @@ fun AppRoot(vm: AppViewModel) {
             showBack = route.value != AppRoute.Home,
             onBack = { route.value = if (route.value is AppRoute.Result) (route.value as AppRoute.Result).back ?: AppRoute.Home else AppRoute.Home },
             onHome = { route.value = AppRoute.Home },
-            onHistory = { route.value = AppRoute.History },
+            onConfigs = { route.value = AppRoute.Configs },
             onSettings = { route.value = AppRoute.Settings },
         )
         Surface(
@@ -144,7 +144,7 @@ fun AppRoot(vm: AppViewModel) {
                 AppRoute.Keypair -> KeypairScreen(vm, onResult = { route.value = AppRoute.Result(AppRoute.Keypair) })
                 AppRoute.Batch -> BatchScreen(vm, onResult = { route.value = AppRoute.Result(AppRoute.Batch) })
                 is AppRoute.Result -> ResultScreen(vm, back = current.back)
-                AppRoute.History -> HistoryScreen(vm, onOpen = { route.value = AppRoute.Result(AppRoute.History) })
+                AppRoute.Configs -> ConfigsScreen(vm, onOpen = { route.value = AppRoute.Result(AppRoute.Configs) })
                 AppRoute.Tunnel -> TunnelScreen(vm)
                 AppRoute.Settings -> SettingsScreen(vm)
             }
@@ -160,7 +160,7 @@ private fun AppRoute.titleKey(): String = when (this) {
     AppRoute.Keypair -> "keypair_title"
     AppRoute.Batch -> "batch_title"
     is AppRoute.Result -> "result_title"
-    AppRoute.History -> "nav_history"
+    AppRoute.Configs -> "nav_configs"
     AppRoute.Tunnel -> "nav_tunnel"
     AppRoute.Settings -> "nav_settings"
 }
@@ -171,7 +171,7 @@ private fun AppTopBar(
     showBack: Boolean,
     onBack: () -> Unit,
     onHome: () -> Unit,
-    onHistory: () -> Unit,
+    onConfigs: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val s = LocalStrings.current
@@ -215,8 +215,8 @@ private fun AppTopBar(
                 fontWeight = FontWeight.SemiBold,
                 color = NeonPalette.textPrimary,
             )
-            IconButton(onClick = onHistory) {
-                Icon(Icons.Filled.History, contentDescription = s["nav_history"], tint = NeonPalette.textSecondary)
+            IconButton(onClick = onConfigs) {
+                Icon(Icons.Filled.History, contentDescription = s["nav_configs"], tint = NeonPalette.textSecondary)
             }
             IconButton(onClick = onSettings) {
                 Icon(Icons.Filled.Settings, contentDescription = s["nav_settings"], tint = NeonPalette.textSecondary)
@@ -227,10 +227,10 @@ private fun AppTopBar(
 
 /** Индикатор состояния туннеля (переиспользуется на главной и в туннеле). */
 @Composable
-fun TunnelStatusDot(state: VpnTunnelController.State): Color = when (state) {
-    VpnTunnelController.State.UP -> NeonPalette.accent2
-    VpnTunnelController.State.CONNECTING -> NeonPalette.amber
-    VpnTunnelController.State.ERROR -> NeonPalette.red
+fun TunnelStatusDot(state: TunnelCore.State): Color = when (state) {
+    TunnelCore.State.UP -> NeonPalette.accent2
+    TunnelCore.State.CONNECTING -> NeonPalette.amber
+    TunnelCore.State.ERROR -> NeonPalette.red
     else -> NeonPalette.textSecondary
 }
 

@@ -6,7 +6,9 @@ activityCompose = "1.9.3"
 lifecycleRuntimeCompose = "2.8.7"
 composeBom = "2024.10.01"
 zxing = "3.5.3"
-wireguardTunnel = "1.0.20260102"
+androidxCollection = "1.4.4"
+androidxAnnotation = "1.8.1"
+jsr305 = "3.0.2"
 junit = "4.13.2"
 coroutinesTest = "1.8.1"
 orgJson = "20240303"
@@ -22,7 +24,9 @@ androidx-compose-foundation = { group = "androidx.compose.foundation", name = "f
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-material-icons = { group = "androidx.compose.material", name = "material-icons-extended" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
-wireguard-tunnel = { group = "com.wireguard.android", name = "tunnel", version.ref = "wireguardTunnel" }
+androidx-collection = { group = "androidx.collection", name = "collection", version.ref = "androidxCollection" }
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidxAnnotation" }
+jsr305 = { group = "com.google.code.findbugs", name = "jsr305", version.ref = "jsr305" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }

@@ -8,7 +8,7 @@ sealed interface AppRoute {
     data object Masque : AppRoute
     data object Keypair : AppRoute
     data object Batch : AppRoute
-    data object History : AppRoute
+    data object Configs : AppRoute
     data object Tunnel : AppRoute
     data object Settings : AppRoute
     data class Result(val back: AppRoute?) : AppRoute

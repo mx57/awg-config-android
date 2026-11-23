@@ -27,7 +27,7 @@ import com.awgconfig.android.AppViewModel
 import com.awgconfig.android.VerticalSpacer
 import com.awgconfig.android.i18n.LocalStrings
 import com.awgconfig.android.i18n.tr
-import com.awgconfig.android.tunnel.VpnTunnelController
+import com.awgconfig.android.tunnel.TunnelCore
 import com.awgconfig.android.ui.components.NeonCard
 import com.awgconfig.android.ui.theme.NeonPalette
 
@@ -67,8 +67,8 @@ fun HomeScreen(vm: AppViewModel, onNavigate: (AppRoute) -> Unit) {
 
         // Статус туннеля
         NeonCard(accent = when (tunnelState.state) {
-            VpnTunnelController.State.UP -> NeonPalette.accent2
-            VpnTunnelController.State.ERROR -> NeonPalette.red
+            TunnelCore.State.UP -> NeonPalette.accent2
+            TunnelCore.State.ERROR -> NeonPalette.red
             else -> NeonPalette.accent3
         }, onClick = { onNavigate(AppRoute.Tunnel) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -77,9 +77,9 @@ fun HomeScreen(vm: AppViewModel, onNavigate: (AppRoute) -> Unit) {
                         .size(10.dp)
                         .background(
                             when (tunnelState.state) {
-                                VpnTunnelController.State.UP -> NeonPalette.accent2
-                                VpnTunnelController.State.CONNECTING -> NeonPalette.amber
-                                VpnTunnelController.State.ERROR -> NeonPalette.red
+                                TunnelCore.State.UP -> NeonPalette.accent2
+                                TunnelCore.State.CONNECTING -> NeonPalette.amber
+                                TunnelCore.State.ERROR -> NeonPalette.red
                                 else -> NeonPalette.textSecondary
                             },
                             CircleShape,
@@ -88,9 +88,9 @@ fun HomeScreen(vm: AppViewModel, onNavigate: (AppRoute) -> Unit) {
                 Text(
                     s["home_tunnel_title"].orEmpty() + " · " +
                         (s["home_tunnel_" + when (tunnelState.state) {
-                            VpnTunnelController.State.UP -> "up"
-                            VpnTunnelController.State.CONNECTING -> "connecting"
-                            VpnTunnelController.State.ERROR -> "error"
+                            TunnelCore.State.UP -> "up"
+                            TunnelCore.State.CONNECTING -> "connecting"
+                            TunnelCore.State.ERROR -> "error"
                             else -> "down"
                         }].orEmpty()),
                     Modifier.padding(start = 10.dp),

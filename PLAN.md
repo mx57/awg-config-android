@@ -144,3 +144,20 @@ QR-коды, история генераций, режим keypair, встрое
   в туннеле для своих серверов; скрипт сборки в репо.
 - v1.2: live-списки маршрутов (opencck/itdoginfo) с офлайн-фолбэком, как у донора.
 - v1.3: импорт существующих .conf, редактор, always-on VPN.
+
+---
+
+## v1.1.0 — движок AmneziaWG + реальная проверка + «Мои конфиги»
+
+1. **Единое ядро туннеля**: `tunnel/TunnelCore.kt` поверх движка `org.amnezia.awg`
+   (amneziawg-android v3.1.20260814, Apache-2.0): Java-исходники в
+   `app/src/main/java/org/amnezia/awg/`, `libwg-go.so` (4 ABI) из официального
+   релизного APK — `app/src/main/jniLibs/`. Maven `com.wireguard.android:tunnel` удалён.
+   WARP-конфиги: AWG-поля стрипаются (пир — стандартный WG). Собственные AWG-серверы:
+   конфиг как есть (Jc/Jmin/Jmax/S1-4/H1-4/I1-5 нативно).
+2. **ConfigChecker** (`core/check`): структурный разбор парсером движка, DNS endpoint
+   c латентностью, masque:// URI. **TunnelCore.realTest**: туннель → handshake (uapi) →
+   cdn-cgi/trace сквозь туннель → выходной IP + warp → disconnect.
+3. **ResultScreen**: карточка «Проверка» (быстро/реально) с чек-листом и вердиктом.
+4. **ConfigsScreen «Мои конфиги»** (замена Истории, 100 записей, стабильные id):
+   фильтры, мультивыбор, пакетный быстрый/реальный тест с прогрессом, ZIP, удаление.

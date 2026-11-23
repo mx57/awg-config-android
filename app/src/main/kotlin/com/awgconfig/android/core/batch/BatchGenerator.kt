@@ -61,7 +61,7 @@ object BatchGenerator {
                         "profile" to params.profile.displayVersion,
                     ),
                     warnings = emptyList(),
-                    tunnelCapable = params.warpSafe, // полноценный AWG-протокол доступен только WARP-safe (стоковый WG-пир)
+                    tunnelCapable = true, // встроенный движок AmneziaWG подключает любые AWG-конфиги, с обфускацией
                 )
             )
         }

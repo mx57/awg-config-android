@@ -26,9 +26,9 @@
             </intent-filter>
         </activity>
 
-        <!-- Встроенный WireGuard-туннель (GoBackend из com.wireguard.android:tunnel) -->
+        <!-- AmneziaWG-движок (org.amnezia.awg.backend.GoBackend из amneziawg-android, Apache-2.0) -->
         <service
-            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:name="org.amnezia.awg.backend.GoBackend$VpnService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>

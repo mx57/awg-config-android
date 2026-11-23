@@ -144,8 +144,9 @@ enum class ProtocolKind(val key: String) {
     WARP("warp"), AWG_SERVER("awg_server"), MASQUE("masque"), KEYPAIR("keypair")
 }
 
-/** Запись истории (до 20, как у донора). */
+/** Запись истории генераций (локально, до 100). */
 data class HistoryEntry(
+    val id: String,
     val createdAt: Long,
     val protocolKind: ProtocolKind,
     val title: String,
@@ -154,7 +155,7 @@ data class HistoryEntry(
     val details: Map<String, String> = emptyMap(),
     val tunnelCapable: Boolean = true,
 ) {
-    fun toGeneratedConfig(id: String) = GeneratedConfig(
+    fun toGeneratedConfig() = GeneratedConfig(
         id = id, protocolKind = protocolKind, title = title, text = text,
         vpnLink = vpnLink, details = details, createdAt = createdAt,
         tunnelCapable = tunnelCapable
@@ -165,4 +166,67 @@ data class HistoryEntry(
 data class BatchOutcome(
     val configs: List<GeneratedConfig>,
     val warnings: List<String> = emptyList(),
+)
+
+// ── Проверка валидности конфигов ─────────────────────────────────────────────
+
+/** Уровень проверки: QUICK — разбор + DNS endpoint; REAL — полный тест через туннель. */
+enum class TestLevel { QUICK, REAL }
+
+/** Итоговый вердикт проверки. */
+enum class TestVerdict { VALID, PARTIAL, INVALID }
+
+/** Отчёт проверки конфига (QUICK или REAL). */
+data class TestReport(
+    val configId: String,
+    val level: TestLevel,
+    val at: Long = System.currentTimeMillis(),
+    // структурная проверка
+    val structuralOk: Boolean = false,
+    val structuralErrors: List<String> = emptyList(),
+    // endpoint
+    val endpoint: String? = null,
+    val dnsOk: Boolean? = null,
+    val endpointLatencyMs: Long? = null,
+    val endpointError: String? = null,
+    // реальный туннель (только REAL и туннелируемые протоколы)
+    val tunnelAttempted: Boolean = false,
+    val tunnelUp: Boolean? = null,
+    val handshakeOk: Boolean? = null,
+    val httpOk: Boolean? = null,
+    val fullTunnel: Boolean? = null,
+    val exitIp: String? = null,
+    val directIp: String? = null,
+    val warpOn: Boolean? = null,
+    val tunnelError: String? = null,
+) {
+    val verdict: TestVerdict
+        get() = when {
+            !structuralOk -> TestVerdict.INVALID
+            level == TestLevel.QUICK -> when {
+                dnsOk == true -> TestVerdict.VALID
+                dnsOk == null -> TestVerdict.PARTIAL
+                else -> TestVerdict.PARTIAL
+            }
+            !tunnelAttempted -> when (dnsOk) {
+                true -> TestVerdict.VALID
+                else -> TestVerdict.PARTIAL
+            }
+            handshakeOk != true -> TestVerdict.INVALID
+            httpOk == true -> when {
+                // полный туннель: IP должен смениться
+                fullTunnel == true && directIp != null && exitIp != null && directIp == exitIp -> TestVerdict.PARTIAL
+                else -> TestVerdict.VALID
+            }
+            else -> TestVerdict.PARTIAL // handshake есть, но HTTP сквозь туннель не прошёл
+        }
+}
+
+/** Прогресс пакетной проверки. */
+data class BatchTestProgress(
+    val total: Int,
+    val done: Int = 0,
+    val running: Boolean = true,
+    val real: Boolean = false,
+    val finishedAt: Long? = null,
 )

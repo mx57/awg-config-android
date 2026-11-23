@@ -1,6 +1,7 @@
 package com.awgconfig.android.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +36,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.awgconfig.android.AppViewModel
 import com.awgconfig.android.VerticalSpacer
+import com.awgconfig.android.core.model.TestLevel
+import com.awgconfig.android.core.model.TestReport
+import com.awgconfig.android.core.model.TestVerdict
 import com.awgconfig.android.i18n.LocalStrings
 import com.awgconfig.android.i18n.tr
 import com.awgconfig.android.ui.components.Chip
@@ -188,6 +193,50 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
             }
         }
 
+        // ── Проверка валидности (реальная) ──────────────────────────────
+        VerticalSpacer(12)
+        SectionTitle(s["check_title"].orEmpty())
+        val test by vm.currentTest.collectAsState()
+        var testing by remember(config.id) { mutableStateOf(false) }
+        if (test != null && test?.configId != config.id) testing = false
+        when {
+            test != null && test?.configId == config.id -> TestReportCard(s, lang, test!!)
+            testing -> NeonCard(accent = NeonPalette.accent3) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        Modifier.height(18.dp).padding(end = 10.dp),
+                        color = NeonPalette.accent3, strokeWidth = 2.dp,
+                    )
+                    Text(s["check_running"].orEmpty(), fontSize = 13.sp, color = NeonPalette.textPrimary)
+                }
+            }
+            else -> NeonCard(accent = NeonPalette.outline) {
+                Text(
+                    s["check_desc"].orEmpty(),
+                    fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 15.sp,
+                )
+                Row(Modifier.padding(top = 8.dp)) {
+                    Chip(s["check_quick"].orEmpty(), accent = NeonPalette.accent2) {
+                        testing = true
+                        vm.testQuick(config)
+                    }
+                    Chip(
+                        s["check_real"].orEmpty(),
+                        accent = NeonPalette.accent3,
+                        modifier = Modifier.padding(start = 6.dp),
+                    ) {
+                        testing = true
+                        vm.testReal(config)
+                    }
+                }
+                Text(
+                    s["check_real_note"].orEmpty(),
+                    Modifier.padding(top = 6.dp),
+                    fontSize = 10.sp, color = NeonPalette.textSecondary, lineHeight = 14.sp,
+                )
+            }
+        }
+
         // vpn://-ссылка
         config.vpnLink?.let { link ->
             VerticalSpacer(12)
@@ -205,10 +254,8 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
             WarningText(s["result_vpn_unavailable"].orEmpty(), Modifier.padding(top = 6.dp))
         }
 
-        // Подключение встроенным туннелем
-        if (config.protocolKind == com.awgconfig.android.core.model.ProtocolKind.WARP ||
-            (config.tunnelCapable && config.protocolKind == com.awgconfig.android.core.model.ProtocolKind.AWG_SERVER)
-        ) {
+        // Подключение встроенным туннелем (движок AmneziaWG: WARP и собственные AWG-серверы)
+        if (config.tunnelCapable) {
             VerticalSpacer(12)
             NeonCard(accent = NeonPalette.accent2, onClick = { vm.requestConnect(config) }) {
                 Text(
@@ -222,9 +269,9 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
                     fontSize = 10.sp, color = NeonPalette.textSecondary,
                 )
             }
-        } else if (config.protocolKind == com.awgconfig.android.core.model.ProtocolKind.AWG_SERVER) {
+        } else if (config.protocolKind == com.awgconfig.android.core.model.ProtocolKind.MASQUE) {
             VerticalSpacer(12)
-            WarningText(s["result_connect_awg_hint"].orEmpty())
+            WarningText(s["result_connect_masque_hint"].orEmpty())
         }
 
         // Пакет: ZIP + отправить все
@@ -300,5 +347,95 @@ fun ResultScreen(vm: AppViewModel, back: AppRoute?) {
             titleContentColor = NeonPalette.textPrimary,
             textContentColor = NeonPalette.textSecondary,
         )
+    }
+}
+
+/** Карточка отчёта проверки: чек-лист по уровням. */
+@Composable
+private fun TestReportCard(s: Map<String, String>, lang: String, t: TestReport) {
+    val verdictColor = when (t.verdict) {
+        TestVerdict.VALID -> NeonPalette.accent2
+        TestVerdict.PARTIAL -> NeonPalette.amber
+        TestVerdict.INVALID -> NeonPalette.red
+    }
+    val verdictLabel = when (t.verdict) {
+        TestVerdict.VALID -> s["check_verdict_valid"].orEmpty()
+        TestVerdict.PARTIAL -> s["check_verdict_partial"].orEmpty()
+        TestVerdict.INVALID -> s["check_verdict_invalid"].orEmpty()
+    }
+    NeonCard(accent = verdictColor) {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Box(
+                Modifier.size(10.dp).background(verdictColor, androidx.compose.foundation.shape.CircleShape)
+            )
+            val levelLabel = if (lang == "en") {
+                if (t.level == TestLevel.REAL) "real check" else "quick check"
+            } else {
+                "проверка: " + if (t.level == TestLevel.REAL) "реальная" else "быстрая"
+            }
+            Text(
+                "  $verdictLabel  ·  $levelLabel",
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = verdictColor,
+            )
+        }
+        VerticalSpacer(8)
+        CheckRow(s["check_structure"].orEmpty(), t.structuralOk, t.structuralErrors.joinToString("; "))
+        if (t.endpoint != null) {
+            CheckRow(
+                s["check_endpoint"].orEmpty() + " · " + t.endpoint,
+                t.dnsOk,
+                t.endpointLatencyMs?.let { "$it ms" } ?: t.endpointError,
+            )
+        }
+        if (t.level == TestLevel.REAL && !t.tunnelAttempted) {
+            Text(
+                s["check_na_tunnel"].orEmpty(),
+                Modifier.padding(top = 6.dp),
+                fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 15.sp,
+            )
+        }
+        if (t.tunnelAttempted) {
+            CheckRow(s["check_tunnel"].orEmpty(), t.tunnelUp, t.tunnelError)
+            if (t.tunnelUp == true) {
+                CheckRow(s["check_handshake"].orEmpty(), t.handshakeOk, null)
+                CheckRow(s["check_http"].orEmpty(), t.httpOk, null)
+                CheckRow(
+                    s["check_exit_ip"].orEmpty() + ": ${t.directIp ?: "?"} → ${t.exitIp ?: "?"}",
+                    if (t.fullTunnel == true) (t.exitIp != null && t.directIp != null && t.exitIp != t.directIp) else null,
+                    if (t.fullTunnel != true) s["check_split_note"].orEmpty() else null,
+                )
+                if (t.warpOn != null && t.exitIp != null) {
+                    CheckRow(
+                        "WARP: " + if (t.warpOn == true) "on" else "off",
+                        null,
+                        if (t.warpOn != true) s["check_warp_off_note"].orEmpty() else null,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Строка чек-листа: ✓/✗/— + подпись + деталь. */
+@Composable
+private fun CheckRow(label: String, ok: Boolean?, detail: String?) {
+    val mark = when (ok) {
+        true -> "✓"
+        false -> "✗"
+        null -> "—"
+    }
+    val color = when (ok) {
+        true -> NeonPalette.accent2
+        false -> NeonPalette.red
+        null -> NeonPalette.textSecondary
+    }
+    Row(Modifier.padding(top = 6.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
+        Text(mark, fontSize = 12.sp, color = color, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(label, fontSize = 12.sp, color = NeonPalette.textPrimary)
+            detail?.takeIf { it.isNotBlank() }?.let {
+                Text(it, fontSize = 10.sp, color = NeonPalette.textSecondary, lineHeight = 13.sp)
+            }
+        }
     }
 }

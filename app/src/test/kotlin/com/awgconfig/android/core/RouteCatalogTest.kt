@@ -1,7 +1,7 @@
 package com.awgconfig.android.core
 
 import com.awgconfig.android.core.routes.RouteCatalog
-import com.awgconfig.android.tunnel.VpnTunnelController
+import com.awgconfig.android.tunnel.TunnelCore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -115,7 +115,7 @@ class TunnelConfigStripTest {
             Endpoint = engage.cloudflareclient.com:4500
             PersistentKeepalive = 25
         """.trimIndent()
-        val stripped = VpnTunnelController.toWireGuardConf(conf)
+        val stripped = TunnelCore.stripAwgFields(conf)
         assertFalse(stripped.contains("Jc ="))
         assertFalse(stripped.contains("I1 ="))
         assertFalse(stripped.contains("S1 ="))

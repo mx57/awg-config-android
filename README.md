@@ -2,8 +2,10 @@
 
 Неоновое Android-приложение (Kotlin + Jetpack Compose) для **генерации и пакетной
 генерации конфигов AmneziaWG / Cloudflare WARP / MASQUE** — и **встроенного VPN-туннеля**:
-свежесгенерированный WARP-конфиг можно сразу включить и туннелировать весь трафик устройства,
-не выходя из приложения.
+свежесгенерированный WARP- или AWG-конфиг можно сразу включить и туннелировать весь трафик устройства,
+не выходя из приложения. Движок — настоящий AmneziaWG (amneziawg-android, Apache-2.0): с 1.1.0
+поддерживается и обфускация Jc/Jmin/Jmax/S1-4/H1-4/I1-5 для собственных серверов, и реальная
+проверка валидности конфигов вплоть до handshake и выходного IP.
 
 Функциональный «донор» — генератор https://awgconfig.com/
 ([amnezia-config-gen](https://github.com/HereIamGosu/amnezia-config-gen), AGPL-3.0).
@@ -13,6 +15,14 @@
 ![CI](https://github.com/mx57/awg-config-android/actions/workflows/build.yml/badge.svg)
 
 ## Возможности
+
+- **Единое ядро туннеля (AmneziaWG)**: org.amnezia.awg GoBackend + libwg-go.so (4 ABI) —
+  подключение WARP-конфигов и собственных AWG-серверов, статистика rx/tx, handshake по uapi.
+- **Реальная проверка конфигов**: разбор парсером движка (форматы ключей/адресов/AllowedIPs),
+  DNS endpoint с замером; «реальный» тест — поднимает туннель, ждёт handshake,
+  измеряет выходной IP (cdn-cgi/trace) и флаг WARP, затем гасит туннель.
+- **«Мои конфиги»**: раздел со всеми генерациями (до 100), фильтры WARP/AWG/MASQUE,
+  мультивыбор, быстрый и реальный **пакетный тест**, ZIP-экспорт, удаление.
 
 - **WARP-конфиги AmneziaWG**: 4 профиля — Legacy 1.5 / AWG 2.0 / AWG 3.0 / AWG 3.1
   (WARP-safe: S1–S4=0, H1–H4=1–4, MTU 1280; тайминги 3.x, ContentPaddingAddition, DisableCookies 3.1).

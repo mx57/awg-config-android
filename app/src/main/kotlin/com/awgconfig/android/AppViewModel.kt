@@ -8,12 +8,17 @@ import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.awgconfig.android.core.batch.BatchGenerator
+import com.awgconfig.android.core.check.ConfigChecker
 import com.awgconfig.android.core.masque.MasqueBuilder
 import com.awgconfig.android.core.model.AwgServerParams
 import com.awgconfig.android.core.model.BatchOutcome
+import com.awgconfig.android.core.model.BatchTestProgress
 import com.awgconfig.android.core.model.GeneratedConfig
+import com.awgconfig.android.core.model.HistoryEntry
 import com.awgconfig.android.core.model.MasqueParams
 import com.awgconfig.android.core.model.ProtocolKind
+import com.awgconfig.android.core.model.TestLevel
+import com.awgconfig.android.core.model.TestReport
 import com.awgconfig.android.core.model.WarpGenParams
 import com.awgconfig.android.core.warp.WarpRegistrationApi
 import com.awgconfig.android.data.HistoryStore
@@ -213,16 +218,28 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
     }
 
     /** Открыть конфиг из истории как результат. */
-    fun openFromHistory(config: GeneratedConfig) {
+    fun openFromHistory(entry: HistoryEntry) {
+        val config = entry.toGeneratedConfig()
         _lastOutcome.value = BatchOutcome(listOf(config))
         _resultIndex.value = 0
         _genState.value = GenState.Done(BatchOutcome(listOf(config)))
+        _currentTest.value = _testReports.value[config.id]
+    }
+
+    /** Счётчик изменений истории — экран «Мои конфиги» перечитывает список по нему. */
+    private val _historyTick = MutableStateFlow(0)
+    val historyTick: StateFlow<Int> = _historyTick
+
+    fun clearHistory() {
+        history.clear()
+        _historyTick.value++
     }
 
     private fun remember(config: GeneratedConfig) {
         if (config.protocolKind == ProtocolKind.KEYPAIR) return // пары ключей не пишем в историю
         history.add(
-            com.awgconfig.android.core.model.HistoryEntry(
+            HistoryEntry(
+                id = config.id,
                 createdAt = config.createdAt,
                 protocolKind = config.protocolKind,
                 title = config.title,
@@ -232,6 +249,7 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
                 tunnelCapable = config.tunnelCapable,
             )
         )
+        _historyTick.value++
     }
 
     // ── Туннель ────────────────────────────────────────────────────────────────
@@ -262,6 +280,90 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
         viewModelScope.launch { tunnel.disconnect() }
     }
 
+    // ── Проверка валидности конфигов ────────────────────────────────────────
+    /** Отчёты по всем проверенным конфигам (id → отчёт). */
+    private val _testReports = MutableStateFlow<Map<String, TestReport>>(emptyMap())
+    val testReports: StateFlow<Map<String, TestReport>> = _testReports
+
+    /** Отчёт для экрана результата (текущий конфиг). */
+    private val _currentTest = MutableStateFlow<TestReport?>(null)
+    val currentTest: StateFlow<TestReport?> = _currentTest
+
+    /** Прогресс пакетной проверки. */
+    private val _batchTest = MutableStateFlow<BatchTestProgress?>(null)
+    val batchTest: StateFlow<BatchTestProgress?> = _batchTest
+
+    val isBatchTesting: Boolean get() = _batchTest.value?.running == true
+
+    fun resetCurrentTest() { _currentTest.value = null }
+
+    /** Быстрая проверка: разбор движком + DNS endpoint. */
+    fun testQuick(config: GeneratedConfig) {
+        _currentTest.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            val report = ConfigChecker.quick(config)
+            _currentTest.value = report
+            _testReports.value = _testReports.value + (config.id to report)
+        }
+    }
+
+    /** Реальная проверка: быстрая + туннель с handshake и выходным IP. */
+    fun testReal(config: GeneratedConfig) {
+        _currentTest.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            val report = runRealTest(config)
+            _currentTest.value = report
+            _testReports.value = _testReports.value + (config.id to report)
+        }
+    }
+
+    /** Пакетная проверка списка конфигов (последовательно). */
+    fun batchTest(configs: List<GeneratedConfig>, real: Boolean) {
+        if (configs.isEmpty()) return
+        if (isBatchTesting) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _batchTest.value = BatchTestProgress(configs.size, 0, running = true, real = real)
+            configs.forEachIndexed { i, config ->
+                val report = if (real) runRealTest(config) else ConfigChecker.quick(config)
+                _testReports.value = _testReports.value + (config.id to report)
+                _batchTest.value = _batchTest.value?.copy(done = i + 1)
+            }
+            _batchTest.value = _batchTest.value?.copy(running = false, finishedAt = System.currentTimeMillis())
+        }
+    }
+
+    fun clearBatchTest() { _batchTest.value = null }
+
+    private suspend fun runRealTest(config: GeneratedConfig): TestReport {
+        val quick = ConfigChecker.quick(config)
+        if (!quick.structuralOk) return quick.copy(level = TestLevel.REAL)
+        if (!config.tunnelCapable) {
+            // MASQUE: QUIC-транспорта нет — только структурная проверка и DNS
+            return quick.copy(level = TestLevel.REAL)
+        }
+        val directIp = runCatching { tunnel.directIp() }.getOrNull()
+        val real = tunnel.realTest(config)
+        return quick.copy(
+            level = TestLevel.REAL,
+            tunnelAttempted = true,
+            tunnelUp = real.tunnelUp,
+            handshakeOk = real.handshakeOk,
+            httpOk = real.httpOk,
+            fullTunnel = real.fullTunnel,
+            exitIp = real.exitIp,
+            directIp = directIp,
+            warpOn = real.warpOn,
+            tunnelError = real.error,
+        )
+    }
+
+    /** Удалить запись истории. */
+    fun deleteHistoryEntry(id: String) {
+        history.removeById(id)
+        _testReports.value = _testReports.value - id
+        _historyTick.value++
+    }
+
     // ── Экспорт ────────────────────────────────────────────────────────────────
 
     /** Сохраняет файл в «Загрузки» (MediaStore, без разрешений на API 29+). */
@@ -287,11 +389,21 @@ class AppViewModel(app: android.app.Application) : AndroidViewModel(app) {
         return saveToDownloads(name, "text/plain", config.text.toByteArray(Charsets.UTF_8))
     }
 
-    fun saveBatchZip(outcome: BatchOutcome, baseName: String): String? {
+    fun saveBatchZip(outcome: BatchOutcome, baseName: String): String? =
+        saveConfigsZip(outcome.configs, baseName)
+
+    /** ZIP из произвольного списка конфигов (для «Мои конфиги»). */
+    fun saveConfigsZip(configs: List<GeneratedConfig>, baseName: String): String? {
+        if (configs.isEmpty()) return null
         val bytes = ByteArrayOutputStream().use { bos ->
             ZipOutputStream(bos).use { zip ->
-                outcome.configs.forEachIndexed { i, config ->
-                    zip.putNextEntry(ZipEntry("${baseName}_${i + 1}.conf"))
+                configs.forEachIndexed { i, config ->
+                    val ext = when (config.protocolKind) {
+                        ProtocolKind.MASQUE, ProtocolKind.KEYPAIR -> "txt"
+                        else -> "conf"
+                    }
+                    val safe = config.title.replace(Regex("[^A-Za-z0-9_-]+"), "_").take(24)
+                    zip.putNextEntry(ZipEntry("${baseName}_${i + 1}_${safe}.${ext}"))
                     zip.write(config.text.toByteArray(Charsets.UTF_8))
                     zip.closeEntry()
                 }

@@ -7,7 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** История генераций — до 20 записей, локально в filesDir/history.json (как у донора). */
+/** История генераций — до 100 записей, локально в filesDir/history.json. */
 class HistoryStore(context: Context) {
 
     private val file: File = File(context.filesDir, "history.json")
@@ -18,7 +18,10 @@ class HistoryStore(context: Context) {
             if (!file.exists()) return emptyList()
             return try {
                 val arr = JSONArray(file.readText())
-                (0 until arr.length()).mapNotNull { i -> entryFromJson(arr.optJSONObject(i) ?: return@mapNotNull null) }
+                (0 until arr.length()).mapNotNull { i ->
+                    val obj = arr.optJSONObject(i) ?: return@mapNotNull null
+                    entryFromJson(obj, i)
+                }
             } catch (_: Exception) {
                 emptyList()
             }
@@ -45,14 +48,22 @@ class HistoryStore(context: Context) {
         }
     }
 
+    fun removeById(id: String) {
+        synchronized(lock) {
+            val current = entries().filterNot { it.id == id }
+            file.writeText(JSONArray().apply { current.forEach { put(toJson(it)) } }.toString())
+        }
+    }
+
     fun clear() {
         synchronized(lock) { file.delete() }
     }
 
     companion object {
-        const val MAX_ENTRIES = 20
+        const val MAX_ENTRIES = 100
 
         private fun toJson(e: HistoryEntry): JSONObject = JSONObject().apply {
+            put("id", e.id)
             put("createdAt", e.createdAt)
             put("kind", e.protocolKind.key)
             put("title", e.title)
@@ -62,10 +73,11 @@ class HistoryStore(context: Context) {
             put("tunnelCapable", e.tunnelCapable)
         }
 
-        private fun entryFromJson(o: JSONObject): HistoryEntry? {
+        private fun entryFromJson(o: JSONObject, index: Int): HistoryEntry? {
             val kind = runCatching { ProtocolKind.entries.firstOrNull { it.key == o.optString("kind") } }
                 .getOrNull() ?: return null
             return HistoryEntry(
+                id = o.optString("id").takeIf { it.isNotBlank() } ?: "history-$index",
                 createdAt = o.optLong("createdAt", System.currentTimeMillis()),
                 protocolKind = kind,
                 title = o.optString("title", "?"),

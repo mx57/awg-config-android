@@ -38,7 +38,7 @@ fun TunnelScreen(vm: AppViewModel) {
     val state by vm.tunnel.state.collectAsState()
 
     LaunchedEffect(state.state) {
-        while (state.state == com.awgconfig.android.tunnel.VpnTunnelController.State.UP) {
+        while (state.state == com.awgconfig.android.tunnel.TunnelCore.State.UP) {
             vm.tunnel.refreshStats()
             delay(2000)
         }
@@ -51,9 +51,9 @@ fun TunnelScreen(vm: AppViewModel) {
             .padding(horizontal = 16.dp)
     ) {
         val color = when (state.state) {
-            com.awgconfig.android.tunnel.VpnTunnelController.State.UP -> NeonPalette.accent2
-            com.awgconfig.android.tunnel.VpnTunnelController.State.CONNECTING -> NeonPalette.amber
-            com.awgconfig.android.tunnel.VpnTunnelController.State.ERROR -> NeonPalette.red
+            com.awgconfig.android.tunnel.TunnelCore.State.UP -> NeonPalette.accent2
+            com.awgconfig.android.tunnel.TunnelCore.State.CONNECTING -> NeonPalette.amber
+            com.awgconfig.android.tunnel.TunnelCore.State.ERROR -> NeonPalette.red
             else -> NeonPalette.textSecondary
         }
 
@@ -62,9 +62,9 @@ fun TunnelScreen(vm: AppViewModel) {
                 Box(Modifier.size(12.dp).background(color, CircleShape))
                 Text(
                     "  " + s["home_tunnel_" + when (state.state) {
-                        com.awgconfig.android.tunnel.VpnTunnelController.State.UP -> "up"
-                        com.awgconfig.android.tunnel.VpnTunnelController.State.CONNECTING -> "connecting"
-                        com.awgconfig.android.tunnel.VpnTunnelController.State.ERROR -> "error"
+                        com.awgconfig.android.tunnel.TunnelCore.State.UP -> "up"
+                        com.awgconfig.android.tunnel.TunnelCore.State.CONNECTING -> "connecting"
+                        com.awgconfig.android.tunnel.TunnelCore.State.ERROR -> "error"
                         else -> "down"
                     }].orEmpty(),
                     fontSize = 16.sp, fontWeight = FontWeight.Bold,
@@ -93,7 +93,7 @@ fun TunnelScreen(vm: AppViewModel) {
         }
 
         VerticalSpacer(12)
-        if (state.state == com.awgconfig.android.tunnel.VpnTunnelController.State.UP) {
+        if (state.state == com.awgconfig.android.tunnel.TunnelCore.State.UP) {
             NeonCard(accent = NeonPalette.red, onClick = { vm.disconnectTunnel() }) {
                 Text(
                     s["action_disconnect"].orEmpty(),
@@ -121,7 +121,7 @@ fun TunnelScreen(vm: AppViewModel) {
         SectionTitle(s["tunnel_note"].let { _ -> "i" })
         Text(s["tunnel_note"].orEmpty(), fontSize = 11.sp, color = NeonPalette.textSecondary, lineHeight = 16.sp)
         state.version?.let {
-            Text("GoBackend · wireguard-go $it", Modifier.padding(top = 6.dp), fontSize = 10.sp, color = NeonPalette.textSecondary, fontFamily = FontFamily.Monospace)
+            Text("AmneziaWG · awg-go $it", Modifier.padding(top = 6.dp), fontSize = 10.sp, color = NeonPalette.textSecondary, fontFamily = FontFamily.Monospace)
         }
         VerticalSpacer(24)
     }

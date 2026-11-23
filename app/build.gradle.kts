@@ -15,8 +15,8 @@ android {
         applicationId = "com.awgconfig.android"
         minSdk = 29
         targetSdk = 34
-        versionCode = 102
-        versionName = "1.0.2"
+        versionCode = 110
+        versionName = "1.1.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -91,7 +91,11 @@ dependencies {
     implementation(libs.androidx.compose.material.icons)
 
     implementation(libs.zxing.core)
-    implementation(libs.wireguard.tunnel)
+
+    // AmneziaWG-движок: исходники org.amnezia.awg.* в src/main/java + libwg-go.so в jniLibs
+    implementation(libs.androidx.collection)
+    implementation(libs.androidx.annotation)
+    compileOnly(libs.jsr305)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

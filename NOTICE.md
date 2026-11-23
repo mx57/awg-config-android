@@ -9,13 +9,17 @@
 **AGPL-3.0** (см. LICENSE). Проекты не связаны: awgconfig.com не участвует в
 разработке этого приложения.
 
-### WireGuard (Apache-2.0)
-Файлы `core/crypto/Curve25519.kt`, `core/crypto/Key.kt`, `core/crypto/KeyPair.kt`
-портированы из wireguard-android / awg-android
-(https://git.zx2c4.com/wireguard-android/, https://github.com/amnezia-vpn/awg-android),
+### AmneziaWG / amneziawg-android (Apache-2.0)
+Встроенный движок туннелирования — исходники `org.amnezia.awg.*` в
+`app/src/main/java/org/amnezia/awg/` (GoBackend, config-парсер с полями
+Jc/Jmin/Jmax/S1-4/H1-4/I1-5, crypto) и нативная библиотека `libwg-go.so`
+(4 ABI, `app/src/main/jniLibs/`) из официального клиента AmneziaWG:
+https://github.com/amnezia-vpn/amneziawg-android (форк wireguard-android),
 Copyright © 2017–2023 WireGuard LLC, Jason A. Donenfeld, AmneziaWG.
-Лицензия **Apache-2.0**. Библиотека туннеля `com.wireguard.android:tunnel`
-(GoBackend, libwg-go) распространяется по Apache-2.0 через Maven Central.
+Лицензия **Apache-2.0**. Файлы `core/crypto/*` приложения — порт тех же
+классов Curve25519/Key/KeyPair. `libwg-go.so` собран из amneziawg-go
+(https://github.com/amnezia-vpn/amneziawg-go) в составе релиза
+AmneziaWG-3.1.20260814.
 
 ### ZXing (Apache-2.0)
 Генерация QR-кодов — ZXing (https://github.com/zxing/zxing), Apache-2.0.
